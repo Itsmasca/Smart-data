@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Reconocimiento de Numeros - Red Neuronal</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            background-color: #f0f0f0;
+            margin: 20px;
+        }
+        h1 { color: #333; }
+        canvas {
+            border: 2px solid #333;
+            cursor: crosshair;
+            background-color: black;
+            border-radius: 8px;
+        }
+        #resultado {
+            font-size: 120px;
+            font-weight: bold;
+            color: #2196F3;
+            margin: 20px;
+            min-height: 140px;
+        }
+        button {
+            padding: 10px 30px;
+            font-size: 18px;
+            margin: 10px;
+            cursor: pointer;
+            border: none;
+            border-radius: 5px;
+            background-color: #f44336;
+            color: white;
+        }
+        button:hover { background-color: #d32f2f; }
+        .info { color: #666; font-size: 14px; margin: 5px; }
+    </style>
+    <script src="https://code.jquery.com/jquery-3.4.1.min.js"
+            integrity="sha256-CSXorXvZcTkaix6Yvo6HppcZGetbYMGWSFlBw8HfCJo="
+            crossorigin="anonymous"></script>
+</head>
+<body>
+    <h1>Reconocimiento de Numeros</h1>
+    <p class="info">Dibuja un numero del 0 al 9 en el recuadro negro</p>
+    <canvas id="canvas" width="280" height="280"></canvas>
+    <button onclick="limpiar()">Limpiar</button>
+    <p class="info">Prediccion:</p>
+    <div id="resultado">?</div>
+
+    <script>
+        var canvas = document.getElementById("canvas");
+        var ctx = canvas.getContext("2d");
+        var drawing = false;
+        var timeout;
+
+        ctx.lineWidth = 18;
+        ctx.lineCap = "round";
+        ctx.strokeStyle = "white";
+
+        canvas.addEventListener("mousedown", function(e) {
+            drawing = true;
+            ctx.beginPath();
+            ctx.moveTo(e.offsetX, e.offsetY);
+        });
+
+        canvas.addEventListener("mousemove", function(e) {
+            if (drawing) {
+                ctx.lineTo(e.offsetX, e.offsetY);
+                ctx.stroke();
+            }
+        });
+
+        canvas.addEventListener("mouseup", function() {
+            drawing = false;
+            clearTimeout(timeout);
+            timeout = setTimeout(enviarPixeles, 500);
+        });
+
+        canvas.addEventListener("mouseleave", function() {
+            drawing = false;
+        });
+
+        //Soporte para touch (mobile)
+        canvas.addEventListener("touchstart", function(e) {
+            e.preventDefault();
+            drawing = true;
+            var rect = canvas.getBoundingClientRect();
+            var touch = e.touches[0];
+            ctx.beginPath();
+            ctx.moveTo(touch.clientX - rect.left, touch.clientY - rect.top);
+        });
+
+        canvas.addEventListener("touchmove", function(e) {
+            e.preventDefault();
+            if (drawing) {
+                var rect = canvas.getBoundingClientRect();
+                var touch = e.touches[0];
+                ctx.lineTo(touch.clientX - rect.left, touch.clientY - rect.top);
+                ctx.stroke();
+            }
+        });
+
+        canvas.addEventListener("touchend", function() {
+            drawing = false;
+            clearTimeout(timeout);
+            timeout = setTimeout(enviarPixeles, 500);
+        });
+
+        function enviarPixeles() {
+            //Escalar canvas de 280x280 a 28x28
+            var tempCanvas = document.createElement("canvas");
+            tempCanvas.width = 28;
+            tempCanvas.height = 28;
+            var tempCtx = tempCanvas.getContext("2d");
+            tempCtx.drawImage(canvas, 0, 0, 28, 28);
+
+            //Obtener pixeles del canvas 28x28
+            var pixels = [];
+            for (var x = 0; x < 28; x++) {
+                for (var y = 0; y < 28; y++) {
+                    var imgData = tempCtx.getImageData(y, x, 1, 1);
+                    var data = imgData.data;
+                    //Pixel negro o blanco? Canal Alpha dividido entre 255
+                    var color = (data[3]) / 255;
+                    //Dejar siempre 2 decimales
+                    color = (Math.round(color * 100) / 100).toFixed(2);
+                    pixels.push(color);
+                }
+            }
+
+            //Enviar por HTTP al servidor Python
+            $.post("http://localhost:8000", {pixeles: pixels.join(",")},
+                function(response) {
+                    console.log("Resultado: " + response);
+                    $("#resultado").html(response);
+                }
+            );
+        }
+
+        function limpiar() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            $("#resultado").html("?");
+        }
+    </script>
+</body>
+</html>
